@@ -1,11 +1,7 @@
 from pydantic import BaseModel
 
 
-# class Message(BaseModel):
-#     message: str
-
-
-class variables(BaseModel):
+class VariablesInput(BaseModel):
     age: int
     cholesterol: int
     maxhr: int
@@ -15,5 +11,7 @@ class variables(BaseModel):
     exerciseAngina: str
 
 
-class result(BaseModel):
+class Result(BaseModel):
     status: str
+    risk_level: str
+    probability: float
