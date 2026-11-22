@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from pathlib import Path
-
+from fastapi.middleware.cors import CORSMiddleware
 import joblib
 import pandas as pd
 from fastapi import FastAPI, Request
@@ -41,6 +41,13 @@ async def lifespan(fastapi_app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
+
 
 @app.post('/answer/', status_code=HTTPStatus.CREATED, response_model=Result)
 def create_prediction(variables: VariablesInput, request: Request):
@@ -76,3 +83,40 @@ def create_prediction(variables: VariablesInput, request: Request):
         risk_level=risk,
         probability=round(float(pred_proba), 2),
     )
+
+@app.post('/explain/')
+def explain_prediction(variables: VariablesInput, request: Request):
+    """
+    Mostra quanto cada variável empurrou a previsão para "doença" (valor
+    positivo) ou para "sem doença" (valor negativo).
+
+    No Naive Bayes a conta é uma soma em escala logarítmica:
+    log-odds = prior + soma das contribuições de cada variável.
+    """
+    model = request.app.state.model
+    preprocessing, naive_bayes = model[:-1], model[-1]
+
+    row = {
+        API_TO_MODEL_COLUMNS[field]: value
+        for field, value in variables.model_dump().items()
+    }
+    codes = preprocessing.transform(pd.DataFrame([row])).astype(int)[0]
+    columns = [
+        name.split('__', 1)[1]
+        for name in preprocessing.get_feature_names_out()
+    ]
+    api_names = {col: api for api, col in API_TO_MODEL_COLUMNS.items()}
+
+    classes = list(model.classes_)
+    pos = classes.index(POSITIVE_CLASS)
+    neg = 1 - pos
+    log_prob = naive_bayes.feature_log_prob_
+
+    contributions = {
+        api_names[column]: float(log_prob[j][pos, code] - log_prob[j][neg, code])
+        for j, (column, code) in enumerate(zip(columns, codes))
+    }
+    prior = float(
+        naive_bayes.class_log_prior_[pos] - naive_bayes.class_log_prior_[neg]
+    )
+    return {'prior': prior, 'contributions': contributions}
