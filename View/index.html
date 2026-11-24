@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Risco de doença cardíaca · Naive Bayes</title>
+<script>
+  (function () {
+    var t; try { t = localStorage.getItem("n2_theme"); } catch (e) {}
+    document.documentElement.setAttribute("data-theme", t || "dark");
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#e6eaed; --shell:#f7f9fa; --soft:#eaeff1; --card:#fff; --field:#f3f6f7;
+    --ink:#16191c; --muted:#6a7378; --line:#d3dade; --accent:#0f8f78; --accent-ink:#fff; --sel:#dcf2ec;
+    --risk:#d6304a; --risk-bg:#fde8ec; --ok:#2c8a3d; --ok-bg:#e2f3e5;
+    --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif; --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --bg:#141518; --shell:#1c1d22; --soft:#222329; --card:#2a2b33; --field:#212228;
+    --ink:#f3f4f6; --muted:#9396a1; --line:#3a3c47; --accent:#4fd1b5; --accent-ink:#06211c; --sel:#1f423b;
+    --risk:#ff5470; --risk-bg:#3d1b24; --ok:#b4f060; --ok-bg:#28371b;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px; background:var(--bg); color:var(--ink); font-family:var(--body); line-height:1.5; }
+  .shell { max-width:1280px; margin:0 auto; display:grid; grid-template-columns:290px minmax(0,1fr); background:var(--shell); border:1px solid var(--line); border-radius:28px; overflow:hidden; }
+  @media (max-width:1000px) { .shell { grid-template-columns:1fr; } }
+  .side { background:var(--soft); padding:24px; display:grid; gap:16px; align-content:start; }
+  .main { padding:28px; display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:20px; align-items:start; }
+  @media (max-width:760px) { .main { grid-template-columns:1fr; padding:18px; } }
+  .col { display:grid; gap:16px; align-content:start; min-width:0; }
+  .card { background:var(--card); border-radius:18px; padding:18px; }
+  h1 { font-family:var(--display); font-size:clamp(1.7rem,3.5vw,2.4rem); line-height:1.1; letter-spacing:-.02em; margin:0 0 6px; }
+  h2,h3 { font-family:var(--display); margin:0 0 12px; letter-spacing:-.01em; }
+  h3 { font-size:1.1rem; }
+  .head { grid-column:1/-1; display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+  .head p { margin:0; color:var(--muted); max-width:60ch; }
+  button { font:inherit; font-weight:600; cursor:pointer; border-radius:12px; padding:11px 20px; border:1.5px solid var(--line); background:transparent; color:var(--ink); }
+  button:hover { background:var(--field); }
+  button:focus-visible, input:focus-visible, .opt input:focus-visible + span { outline:3px solid var(--accent); outline-offset:2px; }
+  .primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-size:1.05rem; min-width:150px; }
+  .primary:hover { background:var(--accent); filter:brightness(1.08); }
+  .primary:disabled { opacity:.6; cursor:progress; }
+  .small { padding:5px 10px; font-size:.8rem; border-radius:8px; color:var(--muted); }
+
+  .gauge { text-align:center; }
+  .ringbox { position:relative; width:170px; margin:0 auto 10px; }
+  .ring { width:100%; display:block; }
+  .bgc { fill:none; stroke:var(--line); stroke-width:9; }
+  .arc { fill:none; stroke:var(--muted); stroke-width:9; stroke-linecap:round; stroke-dasharray:100; stroke-dashoffset:100; transition:stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1); }
+  .ring.risk .arc { stroke:var(--risk); } .ring.ok .arc { stroke:var(--ok); }
+  .rc { position:absolute; inset:0; display:grid; place-content:center; text-align:center; }
+  .rc b { font-family:var(--display); font-size:2.6rem; line-height:1; }
+  .rc span { font-size:.75rem; color:var(--muted); }
+  .badge { display:inline-block; padding:4px 12px; border-radius:99px; font-weight:600; font-size:.9rem; background:var(--field); color:var(--muted); }
+  .badge.risk { background:var(--risk-bg); color:var(--risk); } .badge.ok { background:var(--ok-bg); color:var(--ok); }
+  .chips { display:grid; grid-template-columns:repeat(3,1fr); background:var(--card); border-radius:16px; padding:12px 4px; }
+  .chips div { text-align:center; border-left:1px solid var(--line); font-size:.72rem; color:var(--muted); }
+  .chips div:first-child { border:0; }
+  .chips b { display:block; font-family:var(--display); font-size:1.05rem; color:var(--ink); }
+  .about { font-size:.85rem; color:var(--muted); }
+  .about b { color:var(--ink); }
+  .hh { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .hh h3 { margin:0; font-size:.95rem; color:var(--muted); font-weight:500; }
+  #hist { list-style:none; margin:0; padding:0; display:grid; gap:8px; max-height:300px; overflow-y:auto; }
+  #hist li { display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; background:var(--card); border-radius:12px; padding:9px 10px; font-size:.82rem; }
+  #hist .pill { font-weight:600; padding:3px 8px; border-radius:8px; font-size:.82rem; }
+  #hist .pill.risk { background:var(--risk-bg); color:var(--risk); } #hist .pill.ok { background:var(--ok-bg); color:var(--ok); }
+  #hist .m b { display:block; } #hist .m span { color:var(--muted); font-size:.76rem; }
+  .hempty { color:var(--muted); font-size:.85rem; margin:0; }
+
+  fieldset { border:0; padding:0; margin:0 0 22px; min-width:0; }
+  legend { font-family:var(--display); font-weight:700; font-size:1.1rem; padding:0; margin-bottom:12px; }
+  .field { margin-bottom:16px; }
+  .label { display:block; font-weight:600; font-size:.93rem; }
+  .hint { display:block; color:var(--muted); font-size:.82rem; margin-bottom:6px; }
+  .num { display:flex; max-width:250px; margin-top:6px; }
+  .num input { flex:1; min-width:0; font:inherit; font-size:1.05rem; padding:10px 12px; border:1.5px solid var(--line); border-right:0; border-radius:12px 0 0 12px; background:var(--field); color:var(--ink); }
+  .num span { display:grid; place-items:center; padding:0 12px; border:1.5px solid var(--line); border-radius:0 12px 12px 0; background:var(--soft); color:var(--muted); font-size:.82rem; }
+  .opts { display:grid; gap:8px; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); margin-top:6px; }
+  .opts.two { grid-template-columns:repeat(2,minmax(0,1fr)); max-width:300px; }
+  .opt { position:relative; display:block; }
+  .opt input { position:absolute; opacity:0; inset:0; margin:0; cursor:pointer; }
+  .opt span { display:block; height:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:12px; background:var(--field); font-size:.9rem; transition:border-color .15s,background-color .15s; }
+  .opt span b { display:block; font-weight:600; } .opt span small { color:var(--muted); font-size:.78rem; }
+  .opt:hover span { border-color:var(--muted); }
+  .opt input:checked + span { border-color:var(--accent); background:var(--sel); }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; }
+  .err { display:none; margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--risk-bg); color:var(--risk); font-size:.9rem; }
+
+  .vit { display:grid; grid-template-columns:repeat(2,1fr); gap:12px 16px; margin-bottom:10px; }
+  .vit small { color:var(--muted); font-size:.75rem; display:block; }
+  .vit b { font-family:var(--display); font-size:1.5rem; line-height:1.1; } .vit i { font-style:normal; font-size:.75rem; color:var(--muted); margin-left:3px; }
+  .ecg { width:100%; height:70px; display:block; }
+  .ecg path { fill:none; stroke:var(--muted); stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; }
+  .ecg .pulse { stroke-dasharray:1; stroke-dashoffset:1; }
+  .ecg.go .pulse { animation:draw 1.4s ease-out forwards; }
+  .ecg.go.risk path { stroke:var(--risk); } .ecg.go.ok path { stroke:var(--ok); }
+  @keyframes draw { to { stroke-dashoffset:0; } }
+  .cl-row { display:grid; grid-template-columns:1fr auto; gap:4px 10px; font-size:.9rem; margin-top:12px; }
+  .cl-row .p { font-weight:600; }
+  .track { grid-column:1/-1; height:12px; background:var(--field); border-radius:99px; overflow:hidden; }
+  .track i { display:block; height:100%; width:0; border-radius:99px; transition:width .9s cubic-bezier(.2,.8,.2,1); }
+  .track .d { background:var(--risk); } .track .n { background:var(--ok); }
+  .cl-row.win b::after { content:" (classe prevista)"; font-weight:400; color:var(--muted); }
+  .why { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); }
+  .why h4 { font-family:var(--display); font-size:.98rem; margin:0 0 4px; }
+  .why .lg { display:flex; justify-content:space-between; font-size:.72rem; color:var(--muted); margin:0 46px 6px 42%; }
+  .w-row { display:grid; grid-template-columns:42% 1fr 46px; gap:8px; align-items:center; margin-bottom:7px; font-size:.82rem; }
+  .w-t b { display:block; font-weight:600; line-height:1.2; } .w-t span { color:var(--muted); font-size:.76rem; }
+  .w-bar { position:relative; height:10px; background:var(--field); border-radius:99px; }
+  .w-bar::before { content:""; position:absolute; left:50%; top:-3px; bottom:-3px; width:2px; background:var(--line); }
+  .w-bar i { position:absolute; top:0; bottom:0; border-radius:99px; }
+  .w-bar i.p { left:50%; background:var(--risk); } .w-bar i.m { right:50%; background:var(--ok); }
+  .w-v { text-align:right; font-weight:600; font-variant-numeric:tabular-nums; }
+  .why .fn { color:var(--muted); font-size:.76rem; margin:10px 0 0; }
+  .tabs { grid-column:1/-1; display:flex; gap:6px; background:var(--soft); padding:5px; border-radius:14px; width:max-content; max-width:100%; }
+  .tabs button { border:0; padding:9px 20px; border-radius:10px; color:var(--muted); }
+  .tabs button[aria-selected="true"] { background:var(--card); color:var(--ink); }
+  .main[data-tab="prever"] .t-e, .main[data-tab="entenda"] .t-p { display:none; }
+  .learn { grid-column:1/-1; display:grid; gap:16px; min-width:0; }
+  .learn p { margin:0 0 8px; } .learn p:last-child { margin:0; }
+  .learn .sub { color:var(--muted); font-size:.88rem; }
+  .lgrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  @media (max-width:900px) { .lgrid { grid-template-columns:1fr; } }
+  .lc h3 { margin-bottom:2px; } .lc code { font-size:.75rem; color:var(--muted); }
+  .lc dt { font-weight:600; font-size:.8rem; color:var(--muted); margin-top:12px; } .lc dd { margin:2px 0 0; font-size:.9rem; }
+  .lc .w-row { grid-template-columns:44% 1fr 46px; margin:6px 0 0; }
+  .rk { display:grid; grid-template-columns:200px 1fr 46px; gap:8px; align-items:center; font-size:.85rem; margin-top:8px; }
+  @media (max-width:520px) { .rk { grid-template-columns:110px 1fr 46px; } }
+  .rk .bar { height:10px; background:var(--field); border-radius:99px; overflow:hidden; } .rk .bar i { display:block; height:100%; background:var(--accent); border-radius:99px; }
+  .rk b { font-weight:600; } .rk .v { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
+  #cl-out { display:none; }
+  .muted { color:var(--muted); margin:0; font-size:.92rem; }
+
+  .tiles { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px; }
+  .tile { background:var(--field); border-radius:12px; padding:12px; }
+  .tile .v { font-family:var(--display); font-size:1.6rem; font-weight:700; line-height:1; }
+  .tile .n { font-weight:600; font-size:.88rem; margin-top:3px; }
+  .tile .d { color:var(--muted); font-size:.75rem; margin:2px 0 8px; }
+  .tile .bar { height:5px; background:var(--line); border-radius:9px; overflow:hidden; } .tile .bar i { display:block; height:100%; background:var(--accent); }
+  .cm { border-collapse:separate; border-spacing:5px; width:100%; table-layout:fixed; }
+  .cm th { font-weight:600; font-size:.72rem; color:var(--muted); padding:2px; } .cm th.r { text-align:right; width:27%; }
+  .cm td { text-align:center; padding:12px 4px; border-radius:10px; }
+  .cm td b { display:block; font-family:var(--display); font-size:1.5rem; line-height:1.1; } .cm td small { font-size:.7rem; color:var(--muted); }
+  .foot { grid-column:1/-1; color:var(--muted); font-size:.8rem; margin:0; }
+  @media (prefers-reduced-motion:reduce) { .ecg.go .pulse { animation:none; stroke-dashoffset:0; } .arc,.track i { transition:none; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="gauge">
+      <div class="ringbox">
+        <svg class="ring" id="ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="bgc" cx="60" cy="60" r="52"/>
+          <circle class="arc" id="arc" cx="60" cy="60" r="52" pathLength="100" transform="rotate(-90 60 60)"/>
+        </svg>
+        <div class="rc"><b id="rp">–</b><span>risco de doença</span></div>
+      </div>
+      <span class="badge" id="sbadge">Aguardando dados</span>
+    </div>
+    <div class="chips" aria-label="Resumo do formulário">
+      <div><b id="c-sex">–</b>sexo</div><div><b id="c-fbs">–</b>glicemia &gt; 120</div><div><b id="c-ang">–</b>angina no exercício</div>
+    </div>
+    <div class="about"><b>Naive Bayes categórico</b> (scikit-learn), 8 variáveis de entrada. Treinado com 734 pacientes e testado com 184.</div>
+    <section>
+      <div class="hh"><h3>Histórico da sessão</h3><button type="button" class="small" id="hclear" hidden>Limpar</button></div>
+      <p class="hempty" id="hempty">As previsões feitas aparecem aqui. Use Reusar para carregar os dados de uma delas.</p>
+      <ul id="hist"></ul>
+    </section>
+  </aside>
+
+  <main class="main" data-tab="prever">
+    <div class="head">
+      <div>
+        <h1>Avaliação de risco cardíaco</h1>
+        <p>Preencha os dados do paciente. O modelo estima a probabilidade de doença cardíaca com base em dados clínicos públicos.</p>
+      </div>
+      <button type="button" id="theme" aria-pressed="true">Tema claro</button>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Seções">
+      <button type="button" role="tab" id="tab-prever" aria-selected="true" data-tab="prever">Previsão</button>
+      <button type="button" role="tab" id="tab-entenda" aria-selected="false" data-tab="entenda">Entenda</button>
+    </nav>
+
+    <form id="form" class="card t-p" novalidate>
+      <div id="fields"></div>
+      <div class="actions">
+        <button type="submit" class="primary" id="btn">Prever</button>
+        <button type="button" id="example">Preencher exemplo</button>
+        <button type="reset">Limpar</button>
+      </div>
+      <div class="err" id="err" role="alert"></div>
+    </form>
+
+    <div class="col t-p" aria-live="polite">
+      <section class="card">
+        <h3>Sinais informados</h3>
+        <div class="vit">
+          <div><small>Pressão em repouso</small><b id="v-bp">–</b><i>mm Hg</i></div>
+          <div><small>Colesterol</small><b id="v-ch">–</b><i>mg/dl</i></div>
+          <div><small>ECG em repouso</small><b id="v-ecg">–</b></div>
+          <div><small>Segmento ST</small><b id="v-st">–</b></div>
+        </div>
+        <svg class="ecg" id="ecg" viewBox="0 0 600 84" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 42 H600" stroke-opacity=".35"/>
+          <path class="pulse" pathLength="1" d="M0 42 H150 L165 36 L180 42 H215 L228 48 L242 8 L258 76 L272 42 H320 C336 42 340 26 360 26 C380 26 384 42 400 42 H600"/>
+        </svg>
+      </section>
+
+      <section class="card">
+        <h3 id="status">Resultado</h3>
+        <p class="muted" id="cl-empty">Clique em Prever para ver a probabilidade de cada classe.</p>
+        <div id="cl-out">
+          <div class="cl-row" id="row-d"><b>Com doença cardíaca</b><span class="p" id="pct-d"></span><div class="track"><i class="d" id="fill-d"></i></div></div>
+          <div class="cl-row" id="row-n"><b>Sem doença cardíaca</b><span class="p" id="pct-n"></span><div class="track"><i class="n" id="fill-n"></i></div></div>
+          <div class="why" id="why" hidden></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Desempenho no conjunto de teste</h3>
+        <div class="tiles" id="tiles"></div>
+        <table class="cm" id="cm" aria-label="Matriz de confusão"></table>
+      </section>
+    </div>
+    <section class="t-e learn" id="learn" aria-labelledby="learn-title">
+      <div class="card">
+        <h2 id="learn-title">Entenda os dados de entrada</h2>
+        <p>A base é a Heart Failure Prediction (Kaggle, fedesoriano), com 918 pacientes e 11 variáveis. A seleção progressiva escolheu 8 delas. O modelo foi treinado com 734 pacientes (406 com doença e 328 sem) e testado com 184.</p>
+        <p>Para cada valor possível, o Naive Bayes guarda um <b>peso</b>: quanto aquele valor é mais comum entre quem tem doença do que entre quem não tem, em escala logarítmica. Peso positivo (barra vermelha, à direita) empurra a previsão para doença. Peso negativo (barra verde, à esquerda) empurra para o contrário. Os pesos abaixo foram lidos do modelo treinado.</p>
+      </div>
+      <div class="card" id="rank"></div>
+      <div class="lgrid" id="lcards"></div>
+      <div class="card">
+        <h3>Variáveis que ficaram de fora</h3>
+        <p>Idade, frequência cardíaca máxima (MaxHR) e depressão do segmento ST (Oldpeak) estavam na base, mas a seleção progressiva, que usa validação cruzada e F1, não as escolheu. Isso não quer dizer que sejam irrelevantes na clínica, só que não melhoraram o modelo nesta busca.</p>
+      </div>
+    </section>
+    <p class="foot">Projeto acadêmico de Probabilidade e Estatística. O resultado é uma estimativa estatística e não substitui avaliação médica.</p>
+  </main>
+</div>
+
+<script>
+  const API_URL = "http://127.0.0.1:8000/answer/";
+  const METRICS = { accuracy: 0.8804347826086957, precision: 0.8846153846153846, recall: 0.9019607843137255, f1: 0.8932038834951457 };
+  const CM = [[70, 12], [10, 92]];   
+  const EXAMPLE = { sTSlope: "Flat", cholesterol: 217, fastingBS: 1, restingECG: "ST", restingBP: 139, sex: "M", exerciseAngina: "Y", chestPainType: "ATA" };
+
+  const FORM = [
+    ["Dados do paciente", [
+      { n: "sex", l: "Sexo", two: 1, o: [["M", "Masculino"], ["F", "Feminino"]] },
+      { n: "restingBP", l: "Pressão arterial em repouso", h: "Pressão sistólica. Use 0 se não foi medida.", u: "mm Hg", max: 300, ph: 120 },
+      { n: "cholesterol", l: "Colesterol sérico", h: "Use 0 se o exame não foi feito.", u: "mg/dl", max: 1000, ph: 200 },
+      { n: "fastingBS", l: "Glicemia em jejum acima de 120 mg/dl?", two: 1, o: [["1", "Sim"], ["0", "Não"]] }]],
+    ["Sintomas", [
+      { n: "chestPainType", l: "Tipo de dor no peito", o: [["TA", "Angina típica", "TA"], ["ATA", "Angina atípica", "ATA"], ["NAP", "Dor não anginosa", "NAP"], ["ASY", "Assintomático", "ASY"]] },
+      { n: "exerciseAngina", l: "Angina provocada por exercício?", two: 1, o: [["Y", "Sim"], ["N", "Não"]] }]],
+    ["Eletrocardiograma", [
+      { n: "restingECG", l: "ECG em repouso", o: [["Normal", "Normal"], ["ST", "Anormalidade ST-T", "ST"], ["LVH", "Hipertrofia ventricular", "LVH"]] },
+      { n: "sTSlope", l: "Inclinação do segmento ST no pico do exercício", o: [["Up", "Ascendente", "Up"], ["Flat", "Plana", "Flat"], ["Down", "Descendente", "Down"]] }]],
+  ];
+  const NAMES = { M: "Masc.", F: "Fem.", Y: "Sim", N: "Não", "1": "Sim", "0": "Não", ST: "ST-T", Up: "Ascend.", Flat: "Plana", Down: "Descend." };
+
+  const $ = (id) => document.getElementById(id);
+  const form = $("form"), btn = $("btn"), errBox = $("err"), ecg = $("ecg");
+
+  const themeBtn = $("theme");
+  const syncTheme = () => {
+    const dark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.textContent = dark ? "Tema claro" : "Tema escuro";
+    themeBtn.setAttribute("aria-pressed", String(dark));
+  };
+  themeBtn.addEventListener("click", () => {
+    const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("n2_theme", next); } catch (_) {}
+    syncTheme();
+  });
+  syncTheme();
+
+  $("fields").innerHTML = FORM.map(([title, fields]) =>
+    "<fieldset><legend>" + title + "</legend>" + fields.map((f) => {
+      if (f.o) {
+        return '<div class="field"><span class="label" id="l-' + f.n + '">' + f.l + '</span><div class="opts' + (f.two ? " two" : "") + '" role="radiogroup" aria-labelledby="l-' + f.n + '">' +
+          f.o.map(([v, t, s]) => '<label class="opt"><input type="radio" name="' + f.n + '" value="' + v + '"><span><b>' + t + "</b>" + (s ? "<small>" + s + "</small>" : "") + "</span></label>").join("") + "</div></div>";
+      }
+      return '<div class="field"><label class="label" for="' + f.n + '">' + f.l + '</label><span class="hint">' + f.h + '</span><div class="num"><input id="' + f.n + '" name="' + f.n +
+        '" type="number" inputmode="numeric" min="0" max="' + f.max + '" step="1" placeholder="' + f.ph + '"><span>' + f.u + "</span></div></div>";
+    }).join("") + "</fieldset>").join("");
+
+  function live() {
+    const g = (n) => form.elements[n].value;
+    const nm = (v) => (v === "" ? "–" : NAMES[v] || v);
+    $("c-sex").textContent = nm(g("sex"));
+    $("c-fbs").textContent = nm(g("fastingBS"));
+    $("c-ang").textContent = nm(g("exerciseAngina"));
+    $("v-bp").textContent = g("restingBP") || "–";
+    $("v-ch").textContent = g("cholesterol") || "–";
+    $("v-ecg").textContent = nm(g("restingECG"));
+    $("v-st").textContent = nm(g("sTSlope"));
+  }
+  form.addEventListener("input", live);
+  form.addEventListener("change", live);
+
+  function fill(values) {
+    for (const [name, value] of Object.entries(values)) form.elements[name].value = String(value);
+    clearError(); live();
+  }
+  $("example").addEventListener("click", () => fill(EXAMPLE));
+
+  function showError(html) { errBox.innerHTML = html; errBox.style.display = "block"; }
+  function clearError() { errBox.style.display = "none"; errBox.textContent = ""; }
+
+  const pt = (v) => (v * 100).toFixed(1).replace(".", ",") + "%";
+  (function () {
+    const r = (v) => Math.round(v * 100);
+    const tiles = [
+      ["Acurácia", METRICS.accuracy, "Acertos entre todos os pacientes."],
+      ["Precisão", METRICS.precision, "Ao apontar doença, acerta " + r(METRICS.precision) + " em 100."],
+      ["Recall", METRICS.recall, "Identifica " + r(METRICS.recall) + " de 100 com doença."],
+      ["F1-score", METRICS.f1, "Equilíbrio entre precisão e recall."],
+    ];
+    $("tiles").innerHTML = tiles.map(([n, v, d]) => '<div class="tile"><div class="v">' + pt(v) + '</div><div class="n">' + n + '</div><div class="d">' + d + '</div><div class="bar"><i style="width:' + (v * 100).toFixed(1) + '%"></i></div></div>').join("");
+    const max = Math.max(...CM.flat());
+    const cell = (v, good, label) => '<td style="background:color-mix(in srgb,var(' + (good ? "--ok" : "--risk") + ") " + Math.round(12 + (v / max) * 40) + '%,var(--card))"><b>' + v + "</b><small>" + label + "</small></td>";
+    $("cm").innerHTML = '<tr><th></th><th>Previsto: sem</th><th>Previsto: com</th></tr>' +
+      '<tr><th class="r">Real: sem</th>' + cell(CM[0][0], true, "verd. negativo") + cell(CM[0][1], false, "falso positivo") + "</tr>" +
+      '<tr><th class="r">Real: com</th>' + cell(CM[1][0], false, "falso negativo") + cell(CM[1][1], true, "verd. positivo") + "</tr>";
+  })();
+
+  form.addEventListener("reset", () => {
+    clearError();
+    $("arc").style.strokeDashoffset = 100; $("ring").className.baseVal = "ring";
+    $("rp").textContent = "–"; $("sbadge").className = "badge"; $("sbadge").textContent = "Aguardando dados";
+    $("status").textContent = "Resultado"; $("cl-out").style.display = "none"; $("cl-empty").style.display = "block";
+    ecg.classList.remove("go", "risk", "ok");
+    setTimeout(live, 0);
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault(); clearError();
+    const names = ["sex", "fastingBS", "chestPainType", "exerciseAngina", "restingECG", "sTSlope", "restingBP", "cholesterol"];
+    if (names.some((n) => form.elements[n].value === "")) { showError("Responda todas as perguntas antes de prever."); return; }
+    const d = new FormData(form), int = (n) => parseInt(d.get(n), 10);
+    const payload = { sTSlope: d.get("sTSlope"), cholesterol: int("cholesterol"), fastingBS: int("fastingBS"), restingECG: d.get("restingECG"),
+                      restingBP: int("restingBP"), sex: d.get("sex"), exerciseAngina: d.get("exerciseAngina"), chestPainType: d.get("chestPainType") };
+    if (!form.reportValidity()) return;
+
+    btn.disabled = true; btn.textContent = "Calculando…";
+    try {
+      const res = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) {
+        let detail = ""; try { detail = JSON.stringify((await res.json()).detail); } catch (_) {}
+        showError("O servidor recusou os dados (código " + res.status + "). Confira os valores informados." + (detail ? "<br><code>" + detail.replace(/</g, "&lt;") + "</code>" : ""));
+        return;
+      }
+      const result = await res.json();
+      render(result); addHistory(payload, result); explain(payload);
+    } catch (_) {
+      showError("Não foi possível falar com o servidor em <code>" + API_URL + "</code>. Confirme que o back-end está rodando e que o CORS está liberado para esta página.");
+    } finally { btn.disabled = false; btn.textContent = "Prever"; }
+  });
+
+  function render(r) {
+    const high = r.risk_level === "Alto Risco", cls = high ? "risk" : "ok";
+    const pD = Math.round(r.probability * 100), pN = 100 - pD;
+    $("ring").setAttribute("class", "ring " + cls);
+    $("arc").style.strokeDashoffset = 100 - pD;
+    $("rp").textContent = pD + "%";
+    $("sbadge").className = "badge " + cls; $("sbadge").textContent = r.risk_level;
+    $("status").textContent = r.status;
+    $("pct-d").textContent = pD + "%"; $("pct-n").textContent = pN + "%";
+    $("row-d").classList.toggle("win", high); $("row-n").classList.toggle("win", !high);
+    $("why").hidden = true; $("why").innerHTML = "";
+    $("cl-empty").style.display = "none"; $("cl-out").style.display = "block";
+    $("fill-d").style.width = "0"; $("fill-n").style.width = "0";
+    requestAnimationFrame(() => requestAnimationFrame(() => { $("fill-d").style.width = pD + "%"; $("fill-n").style.width = pN + "%"; }));
+    ecg.classList.remove("go", "risk", "ok"); void ecg.getBoundingClientRect(); ecg.classList.add("go", cls);
+    if (window.matchMedia("(max-width: 1000px)").matches) $("status").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+
+  const EXPLAIN_URL = API_URL.replace(/answer\/?$/, "explain/");
+  const SHORT = { sex: "Sexo", restingBP: "Pressão", cholesterol: "Colesterol", fastingBS: "Glicemia > 120", chestPainType: "Dor no peito",
+                  exerciseAngina: "Angina no exercício", restingECG: "ECG em repouso", sTSlope: "Segmento ST" };
+  const sgn = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2).replace(".", ",");
+  function valueText(name, value) {
+    const f = FORM.flatMap((g) => g[1]).find((x) => x.n === name);
+    if (f.o) return f.o.find((o) => o[0] === String(value))[1];
+    return value === 0 ? "não medido" : value + " " + f.u;
+  }
+  async function explain(payload) {
+    const box = $("why");
+    try {
+      const res = await fetch(EXPLAIN_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error(res.status);
+      const { prior, contributions } = await res.json();
+      const rows = Object.entries(contributions).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+      const max = Math.max(...rows.map((r) => Math.abs(r[1])), 0.01);
+      box.innerHTML = "<h4>O que levou a este resultado</h4>" +
+        '<div class="lg"><span>contra doença</span><span>a favor</span></div>' +
+        rows.map(([n, c]) => '<div class="w-row"><div class="w-t"><b>' + SHORT[n] + "</b><span>" + valueText(n, payload[n]) + '</span></div>' +
+          '<div class="w-bar"><i class="' + (c >= 0 ? "p" : "m") + '" style="width:' + (Math.abs(c) / max * 50).toFixed(1) + '%"></i></div><div class="w-v">' + sgn(c) + "</div></div>").join("") +
+        '<p class="fn">Ponto de partida do modelo: ' + Math.round(100 / (1 + Math.exp(-prior))) + '% (proporção de pacientes com doença no treino). ' +
+        "Cada barra mostra quanto aquela resposta empurra a conta para doença (direita) ou para o contrário (esquerda). " +
+        "A soma de todos os pesos com o ponto de partida dá a probabilidade final.</p>";
+    } catch (_) {
+      box.innerHTML = '<p class="fn">Explicação indisponível. Adicione a rota <code>POST /explain/</code> ao back-end.</p>';
+    }
+    box.hidden = false;
+  }
+
+  const LEARN = [
+    { t: "Tipo de dor no peito", c: "ChestPainType", what: "Como o paciente descreve a dor no peito: angina típica (TA), angina atípica (ATA), dor não anginosa (NAP) ou assintomático (ASY).",
+      how: "Quatro categorias. Os códigos internos só identificam o grupo e não representam intensidade.",
+      read: "Nessa base, quem não relata dor (ASY) tem mais doença, e ATA é o valor que mais afasta a suspeita. É um padrão dos dados, não uma regra médica.",
+      v: [["Angina típica (TA)", -0.40], ["Angina atípica (ATA)", -1.99], ["Dor não anginosa (NAP)", -0.89], ["Assintomático (ASY)", 1.09]] },
+    { t: "Inclinação do segmento ST", c: "ST_Slope", what: "Inclinação do segmento ST do eletrocardiograma no pico do exercício: ascendente, plana ou descendente.",
+      how: "Três categorias.", read: "Ascendente é o valor que mais afasta a suspeita. Plana e descendente pesam a favor de doença.",
+      v: [["Ascendente (Up)", -1.72], ["Plana (Flat)", 1.37], ["Descendente (Down)", 1.28]] },
+    { t: "Angina provocada por exercício", c: "ExerciseAngina", what: "Se o paciente sentiu dor no peito durante o teste de esforço.",
+      how: "Duas categorias, sim (Y) ou não (N).", read: "Sentir dor no esforço empurra forte para doença, e não sentir empurra para o lado oposto.",
+      v: [["Não (N)", -0.83], ["Sim (Y)", 1.48]] },
+    { t: "Colesterol sérico", c: "Cholesterol", what: "Colesterol total no sangue, em mg/dl. Na base, 0 significa que o exame não foi feito.",
+      how: "O 0 é tratado como ausente e trocado pela mediana do treino (238). Depois o valor cai em uma de 5 faixas, definidas por quantis.",
+      read: "A faixa de 236 a 239 pesa bem mais que as outras. Ela contém a mediana 238, usada para preencher os 0, então esse peso provavelmente reflete a ausência do exame e não um nível de colesterol.",
+      v: [["Até 208", -0.51], ["209 a 235", -0.42], ["236 a 239", 1.48], ["240 a 279", -0.30], ["280 ou mais", 0.06]] },
+    { t: "Sexo", c: "Sex", what: "Sexo registrado do paciente, masculino (M) ou feminino (F).",
+      how: "Duas categorias.", read: "Na base, o sexo masculino pesa a favor de doença e o feminino pesa contra. Isso reflete a composição dos dados.",
+      v: [["Masculino (M)", 0.30], ["Feminino (F)", -1.12]] },
+    { t: "Glicemia em jejum acima de 120 mg/dl", c: "FastingBS", what: "Indica se a glicose em jejum passou de 120 mg/dl, um sinal usado para suspeitar de diabetes.",
+      how: "Vale 0 (não) ou 1 (sim).", read: "Glicemia alta empurra para doença. Glicemia normal pesa pouco para o outro lado.",
+      v: [["Não (0)", -0.28], ["Sim (1)", 1.10]] },
+    { t: "Pressão arterial em repouso", c: "RestingBP", what: "Pressão sistólica medida em repouso, em mm Hg. Na base, 0 significa que não foi medida.",
+      how: "O 0 é tratado como ausente e trocado pela mediana do treino (130). Depois o valor cai em uma de 5 faixas, definidas por quantis.",
+      read: "Os pesos são pequenos, então a pressão muda pouco a previsão.",
+      v: [["Até 119", 0.01], ["120 a 127", -0.27], ["128 a 135", -0.24], ["136 a 145", 0.16], ["146 ou mais", 0.39]] },
+    { t: "ECG em repouso", c: "RestingECG", what: "Resultado do eletrocardiograma em repouso: normal, anormalidade da onda ST-T (ST) ou sinal de hipertrofia do ventrículo esquerdo (LVH).",
+      how: "Três categorias.", read: "Os pesos são pequenos, então o ECG em repouso muda pouco a previsão.",
+      v: [["Normal", -0.16], ["Anormalidade ST-T (ST)", 0.44], ["Hipertrofia (LVH)", 0.09]] },
+  ];
+  (function () {
+    const maxW = Math.max(...LEARN.flatMap((f) => f.v.map((x) => Math.abs(x[1]))));
+    $("lcards").innerHTML = LEARN.map((f) =>
+      '<article class="card lc"><h3>' + f.t + "</h3><code>" + f.c + "</code><dl><dt>O que é</dt><dd>" + f.what + "</dd><dt>Como o modelo recebe</dt><dd>" + f.how +
+      "</dd><dt>Peso de cada valor</dt><dd>" + f.v.map(([n, w]) => '<div class="w-row"><div class="w-t"><b>' + n + '</b></div><div class="w-bar"><i class="' + (w >= 0 ? "p" : "m") +
+      '" style="width:' + (Math.abs(w) / maxW * 50).toFixed(1) + '%"></i></div><div class="w-v">' + sgn(w) + "</div></div>").join("") +
+      "</dd><dt>Leitura</dt><dd>" + f.read + "</dd></dl></article>").join("");
+
+    const amp = LEARN.map((f) => { const w = f.v.map((x) => x[1]); return [f.t, Math.max(...w) - Math.min(...w)]; }).sort((a, b) => b[1] - a[1]);
+    $("rank").innerHTML = "<h3>Quanto cada variável pesa no modelo</h3>" +
+      '<p class="sub">Diferença entre o maior e o menor peso de cada variável. Quanto maior, mais ela consegue mudar a previsão.</p>' +
+      amp.map(([n, a]) => '<div class="rk"><b>' + n + '</b><div class="bar"><i style="width:' + (a / amp[0][1] * 100).toFixed(1) + '%"></i></div><span class="v">' + a.toFixed(2).replace(".", ",") + "</span></div>").join("");
+  })();
+
+  
+  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelector(".main").dataset.tab = b.dataset.tab;
+    document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+    window.scrollTo({ top: 0 });
+  }));
+
+
+  let history = [];
+  try { history = JSON.parse(sessionStorage.getItem("n2_hist")) || []; } catch (_) {}
+  function addHistory(payload, r) {
+    history = [{ t: Date.now(), payload, risk: r.risk_level, p: r.probability }, ...history].slice(0, 10);
+    try { sessionStorage.setItem("n2_hist", JSON.stringify(history)); } catch (_) {}
+    renderHistory();
+  }
+  function renderHistory() {
+    const ul = $("hist"); ul.innerHTML = "";
+    $("hempty").style.display = history.length ? "none" : "block"; $("hclear").hidden = !history.length;
+    history.forEach((h) => {
+      const li = document.createElement("li"), pill = document.createElement("span"), m = document.createElement("div"), b = document.createElement("button");
+      pill.className = "pill " + (h.risk === "Alto Risco" ? "risk" : "ok"); pill.textContent = Math.round(h.p * 100) + "%";
+      m.className = "m";
+      const t = new Date(h.t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      m.innerHTML = "<b></b><span></span>"; m.firstChild.textContent = h.risk + ", " + t;
+      m.lastChild.textContent = NAMES[h.payload.sex] + ", PA " + h.payload.restingBP + ", col. " + h.payload.cholesterol + ", dor " + h.payload.chestPainType;
+      b.type = "button"; b.className = "small"; b.textContent = "Reusar";
+      b.addEventListener("click", () => { fill(h.payload); form.scrollIntoView({ behavior: "smooth" }); });
+      li.append(pill, m, b); ul.append(li);
+    });
+  }
+  $("hclear").addEventListener("click", () => { history = []; try { sessionStorage.removeItem("n2_hist"); } catch (_) {} renderHistory(); });
+  renderHistory(); live();
+</script>
+</body>
+</html>

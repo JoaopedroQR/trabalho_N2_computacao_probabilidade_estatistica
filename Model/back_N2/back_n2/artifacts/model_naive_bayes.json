@@ -1,0 +1,18 @@
+{
+  "features": [
+    "ST_Slope",
+    "Cholesterol",
+    "FastingBS",
+    "RestingECG",
+    "RestingBP",
+    "Sex",
+    "ExerciseAngina",
+    "ChestPainType"
+  ],
+  "target": "HeartDisease",
+  "seed": 42,
+  "selection": "forward, three-fold training CV, F1",
+  "train_rows": 734,
+  "test_rows": 184,
+  "test_status": "internal, consulted in earlier versions"
+}

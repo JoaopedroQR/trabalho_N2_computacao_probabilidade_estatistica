@@ -1,0 +1,93 @@
+{
+  "features": [
+    "ST_Slope",
+    "Cholesterol",
+    "FastingBS",
+    "RestingECG",
+    "RestingBP",
+    "Sex",
+    "ExerciseAngina",
+    "ChestPainType"
+  ],
+  "campos_novos": [
+    "FastingBS",
+    "RestingECG",
+    "RestingBP",
+    "Sex"
+  ],
+  "campos_removidos": [
+    "Age",
+    "MaxHR",
+    "Oldpeak"
+  ],
+  "proposta_forward": [
+    "ST_Slope",
+    "Cholesterol",
+    "FastingBS",
+    "RestingECG",
+    "RestingBP",
+    "Sex",
+    "ExerciseAngina",
+    "ChestPainType"
+  ],
+  "api_columns": {
+    "sTSlope": "ST_Slope",
+    "cholesterol": "Cholesterol",
+    "fastingBS": "FastingBS",
+    "restingECG": "RestingECG",
+    "restingBP": "RestingBP",
+    "sex": "Sex",
+    "exerciseAngina": "ExerciseAngina",
+    "chestPainType": "ChestPainType"
+  },
+  "categorias": {
+    "ST_Slope": [
+      "Up",
+      "Flat",
+      "Down"
+    ],
+    "FastingBS": [
+      0,
+      1
+    ],
+    "RestingECG": [
+      "Normal",
+      "ST",
+      "LVH"
+    ],
+    "Sex": [
+      "M",
+      "F"
+    ],
+    "ExerciseAngina": [
+      "N",
+      "Y"
+    ],
+    "ChestPainType": [
+      "TA",
+      "ATA",
+      "NAP",
+      "ASY"
+    ]
+  },
+  "exemplo_base": {
+    "ST_Slope": "Flat",
+    "Cholesterol": 217,
+    "FastingBS": 1,
+    "RestingECG": "ST",
+    "RestingBP": 139,
+    "Sex": "M",
+    "ExerciseAngina": "Y",
+    "ChestPainType": "ATA"
+  },
+  "exemplo_api": {
+    "sTSlope": "Flat",
+    "cholesterol": 217,
+    "fastingBS": 1,
+    "restingECG": "ST",
+    "restingBP": 139,
+    "sex": "M",
+    "exerciseAngina": "Y",
+    "chestPainType": "ATA"
+  }
+}
